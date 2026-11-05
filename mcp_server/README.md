@@ -56,20 +56,50 @@ pytest -q                       # unit tests and end-to-end test (65 tests)
 ```
 
 The end-to-end test starts the whole pipeline on free ports and checks the rug-pull
-scenario. To run the pipeline by hand, start the services in separate terminals:
+scenario. To run the pipeline by hand, use four terminals from `mcp_server/`. Each
+service must be up before the next step uses it.
 
 ```bash
+# Terminal 1: the malicious demo server (its description flips on listing 6)
 export PYTHONPATH=$PWD
-python -m uvicorn rugpull_mcp.testbed.demo_server:app --port 8500           # demo MCP server, flips after 5 listings
-python -m rugpull_mcp.testbed.make_demo_baseline http://127.0.0.1:8500 /tmp/approved-tools.json   # record the clean baseline
+python -m uvicorn rugpull_mcp.testbed.demo_server:app --port 8500
+
+# Terminal 2 (wait until terminal 1 says "Uvicorn running"): record the clean baseline
+python -m rugpull_mcp.testbed.make_demo_baseline http://127.0.0.1:8500 /tmp/approved-tools.json
+
+# Terminal 2: the ingest service. The token is required. Use any value, but use the same one below.
+INGEST_TOKEN=devtoken BASELINE_PATH=/tmp/approved-tools.json BASELINE_TTL_SECONDS=1 \
+  python -m uvicorn rugpull_mcp.ingest:app --port 8502
+
+# Terminal 3: the gateway stand-in (Kong's role), which forwards traffic and sends log records
 ROUTES='{"/mcp/demo":{"service":"demo-mcp","upstream":"http://127.0.0.1:8500/mcp"}}' \
-  DETECTOR_URL=http://127.0.0.1:8502/ingest \
-  python -m uvicorn rugpull_mcp.testbed.gateway_sim:app --port 8501          # Kong stand-in
-BASELINE_PATH=/tmp/approved-tools.json python -m uvicorn rugpull_mcp.ingest:app --port 8502
-python -m rugpull_mcp.testbed.test_agent --gateway http://localhost:8501 --count 10
+  DETECTOR_URL=http://127.0.0.1:8502/ingest DETECTOR_TOKEN=devtoken \
+  python -m uvicorn rugpull_mcp.testbed.gateway_sim:app --port 8501
+
+# Terminal 4: the test agent. The first 5 listings are clean, the 6th and later are poisoned.
+python -m rugpull_mcp.testbed.test_agent --gateway http://127.0.0.1:8501 --count 8 --interval 1
 ```
 
-Without `SLACK_WEBHOOK_URL`, alerts are written to the log.
+Expected: the agent prints 8 listings, and terminal 2 logs one
+`ALERT ... MCP tool change on demo-mcp, received by consumer agent-a`. Then check the
+ingest stats:
+
+```bash
+curl -s localhost:8502/stats          # tool_listings: 8, alerts: 1
+```
+
+Checks you can run by hand:
+
+```bash
+# Refused without a token (expect 401)
+curl -s -o /dev/null -w "%{http_code}\n" -X POST localhost:8502/ingest -H 'Content-Type: application/json' -d '{}'
+
+# Probes (expect {"ok":true})
+curl -s localhost:8502/healthz; curl -s localhost:8501/healthz
+```
+
+Without `SLACK_WEBHOOK_URL`, alerts are written to the log. Every ingest request needs
+the token, so the token in the ingest command and the gateway command must match.
 
 To run only the MCP server (stdio or HTTP):
 
