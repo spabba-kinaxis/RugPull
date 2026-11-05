@@ -1,0 +1,115 @@
+# Ingest service: receives Kong HTTP Log records and raises alerts.
+# Uses the same image as the MCP server. Apply after k8s/mcp-server.yaml.
+#
+# Create the secret first (not stored in git):
+#   kubectl -n mcp-detector create secret generic rugpull-detector \
+#     --from-literal=SLACK_WEBHOOK_URL="$SLACK_WEBHOOK_URL" \
+#     --from-literal=KONNECT_PAT="$KONNECT_PAT" \
+#     --from-literal=CONTROL_PLANE_ID="$CONTROL_PLANE_ID" \
+#     --from-literal=KONNECT_API="$KONNECT_API" \
+#     --from-literal=ROUTE_IDS='{"demo-mcp":"<route uuid>"}'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rugpull-ingest
+  namespace: mcp-detector
+  labels:
+    app: rugpull-ingest
+spec:
+  replicas: 1          # alert de-duplication is in memory, so keep one replica
+  selector:
+    matchLabels:
+      app: rugpull-ingest
+  template:
+    metadata:
+      labels:
+        app: rugpull-ingest
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ingest
+          image: <registry>/rugpull-mcp:0.1.0
+          command: ["uvicorn", "rugpull_mcp.ingest:app", "--host", "0.0.0.0", "--port", "8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: rugpull-detector
+          env:
+            - name: BASELINE_PATH
+              value: /baseline/approved-tools.json
+            - name: BASELINE_TTL_SECONDS
+              value: "30"
+            - name: RESPONSE_BODY_PATH          # verify against your Kong version
+              value: response.body
+            - name: QUARANTINE_ENABLED
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: baseline
+              mountPath: /baseline
+              readOnly: true
+      volumes:
+        - name: baseline
+          configMap:
+            name: mcp-baseline
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rugpull-ingest
+  namespace: mcp-detector
+spec:
+  selector:
+    app: rugpull-ingest
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Only Kong's namespace may post log records.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rugpull-ingest-ingress
+  namespace: mcp-detector
+spec:
+  podSelector:
+    matchLabels:
+      app: rugpull-ingest
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <kong-namespace>
+      ports:
+        - port: 8080

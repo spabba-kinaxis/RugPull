@@ -1,0 +1,108 @@
+# Demo only. Runs the malicious test server and a gateway stand-in for Kong, so the
+# pipeline can be shown without a Kong cluster. Do not deploy to production.
+# Replace <registry> with your image registry.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-mcp
+  namespace: mcp-detector
+  labels:
+    app: demo-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-mcp
+  template:
+    metadata:
+      labels:
+        app: demo-mcp
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: demo-mcp
+          image: <registry>/rugpull-mcp:0.1.0
+          command: ["uvicorn", "rugpull_mcp.testbed.demo_server:app", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - containerPort: 8000
+          env:
+            - name: FLIP_AFTER
+              value: "5"
+          readinessProbe:
+            httpGet: {path: /state, port: 8000}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-sim
+  namespace: mcp-detector
+  labels:
+    app: gateway-sim
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-sim
+  template:
+    metadata:
+      labels:
+        app: gateway-sim
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway-sim
+          image: <registry>/rugpull-mcp:0.1.0
+          command: ["uvicorn", "rugpull_mcp.testbed.gateway_sim:app", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - containerPort: 8000
+          env:
+            - name: ROUTES
+              value: '{"/mcp/demo":{"service":"demo-mcp","upstream":"http://demo-mcp.mcp-detector.svc.cluster.local:8000/mcp"}}'
+            - name: DETECTOR_URL
+              value: http://rugpull-ingest.mcp-detector.svc.cluster.local:8080/ingest
+          readinessProbe:
+            httpGet: {path: /healthz, port: 8000}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-mcp
+  namespace: mcp-detector
+spec:
+  selector:
+    app: demo-mcp
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-sim
+  namespace: mcp-detector
+spec:
+  selector:
+    app: gateway-sim
+  ports:
+    - port: 8000
+      targetPort: 8000

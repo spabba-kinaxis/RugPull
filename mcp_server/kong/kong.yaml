@@ -1,0 +1,28 @@
+# decK config for the MCP routes. Sync with:
+#   deck gateway sync kong/kong.yaml --konnect-token "$KONNECT_PAT" \
+#     --konnect-control-plane-name "<non-prod control plane>" --select-tag mcp-managed
+#
+# Items tagged mcp-quarantine are added by the detector. The --select-tag above
+# keeps decK from deleting them.
+#
+# VERIFY against your Kong version before use:
+#   - the plugin name and the field that holds the MCP response body in the log record
+#   - the auth plugin that maps tokens to consumers
+_format_version: "3.0"
+services:
+  - name: demo-mcp
+    url: http://demo-mcp.mcp-detector.svc.cluster.local:8000/mcp
+    tags: [mcp-managed]
+    routes:
+      - name: demo-mcp-route
+        paths: [/mcp/demo]
+        tags: [mcp-managed]
+    plugins:
+      - name: http-log
+        config:
+          http_endpoint: http://rugpull-ingest.mcp-detector.svc.cluster.local:8080/ingest
+          method: POST
+          content_type: application/json
+          queue:
+            max_batch_size: 1
+  # Add one service and route per approved MCP server. Each one needs a baseline entry.
