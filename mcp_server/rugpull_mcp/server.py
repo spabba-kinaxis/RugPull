@@ -17,7 +17,6 @@ Configuration (environment variables):
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from pathlib import Path
@@ -27,7 +26,7 @@ from mcp.server.fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from . import core
+from . import baseline, core
 
 log = logging.getLogger("rugpull_mcp")
 
@@ -60,19 +59,8 @@ mcp = FastMCP(
 # --------------------------------------------------------------------------- #
 
 def load_baseline() -> dict[str, Any]:
-    """Read approved-tools.json. The path is server configuration, never a tool argument."""
-    try:
-        with BASELINE_PATH.open() as f:
-            data = json.load(f)
-    except FileNotFoundError as exc:
-        log.error("baseline file missing at %s", BASELINE_PATH)
-        raise ValueError("approved baseline is not available") from exc
-    except (OSError, json.JSONDecodeError) as exc:
-        log.error("baseline file unreadable at %s: %s", BASELINE_PATH, exc)
-        raise ValueError("approved baseline is not available") from exc
-    if not isinstance(data, dict):
-        raise ValueError("approved baseline has an unexpected shape")
-    return data
+    """Baseline at BASELINE_PATH. The path is server configuration, never a tool argument."""
+    return baseline.load_baseline(BASELINE_PATH)
 
 
 def _check_server(server: str) -> str:

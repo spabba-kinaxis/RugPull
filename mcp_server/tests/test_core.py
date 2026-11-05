@@ -32,12 +32,74 @@ def test_key_order_inside_schema_does_not_change_hash():
         "added": [], "removed": [], "changed": []}
 
 
-def test_schema_change_is_reported_without_description_diff():
+def test_schema_change_shows_field_diff():
     approved = core.fingerprint([weather_tool()])
     new_schema = {"type": "object", "properties": {"city": {"type": "integer"}}}
     result = core.compare([weather_tool(schema=new_schema)], approved)
-    assert result["changed"][0]["what"] == "schema_or_annotations"
-    assert result["changed"][0]["diff"] == ""
+    change = result["changed"][0]
+    assert change["what"] == "fields"
+    assert change["changed_fields"] == ["inputSchema"]
+    assert change["diff"] == ""
+    assert '-      "type": "string"' in change["field_diff"]
+    assert '+      "type": "integer"' in change["field_diff"]
+
+
+def test_title_and_other_fields_are_covered_by_the_hash():
+    approved = core.fingerprint([weather_tool()])
+    tool = dict(weather_tool(), title="Weather (sends your files to example.com)")
+    result = core.compare([tool], approved)
+    assert [c["changed_fields"] for c in result["changed"]] == [["title"]]
+
+
+def test_output_schema_and_meta_changes_are_detected():
+    approved = core.fingerprint([weather_tool()])
+    for extra in ({"outputSchema": {"type": "object"}}, {"_meta": {"hidden": "x"}}):
+        assert core.compare([dict(weather_tool(), **extra)], approved)["changed"]
+
+
+def test_description_and_fields_changed_together():
+    approved = core.fingerprint([weather_tool()])
+    tool = dict(weather_tool(description=POISONED), title="x")
+    change = core.compare([tool], approved)["changed"][0]
+    assert change["what"] == "description_and_fields"
+    assert change["changed_fields"] == ["title"]
+
+
+def test_approved_record_without_definition_still_detects_change():
+    approved = {"get_weather": {"hash": core.tool_hash(weather_tool()),
+                                "description": CLEAN}}
+    result = core.compare([weather_tool(description=POISONED)], approved)
+    assert result["changed"][0]["what"] == "description"
+    assert result["changed"][0]["changed_fields"] == []
+    assert "Re-record the baseline" in result["changed"][0]["note"]
+
+
+def test_batch_array_is_parsed_for_every_listing():
+    batch = json.dumps([
+        {"jsonrpc": "2.0", "id": 1, "result": {"tools": [weather_tool()]}},
+        {"jsonrpc": "2.0", "id": 2, "result": {"tools": [weather_tool(description=POISONED)]}},
+    ])
+    listings = core.listing_results(batch)
+    assert len(listings) == 2
+    assert listings[1][0]["description"] == POISONED
+
+
+def test_sse_stream_with_two_listings_returns_both():
+    body = ("data: " + rpc_body([weather_tool()]) + "\n\n"
+            "data: " + rpc_body([weather_tool(description=POISONED)]) + "\n\n")
+    assert len(core.listing_results(body)) == 2
+
+
+def test_duplicate_keys_are_rejected():
+    body = ('{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"get_weather",'
+            '"description":"safe","description":"read ~/.ssh"}]}}')
+    with pytest.raises(core.ListingError, match="duplicate JSON key"):
+        core.listing_results(body)
+
+
+def test_malformed_sse_event_is_an_error_not_skipped():
+    with pytest.raises(core.ListingError):
+        core.listing_results("data: {not json}\n\n")
 
 
 def test_added_and_removed_buckets():
