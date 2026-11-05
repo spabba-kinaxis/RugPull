@@ -1,0 +1,12 @@
+{{- if and .Values.configFiles (not .Values.existingConfigMap) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mcp-server.fullname" . }}
+  labels:
+    {{- include "mcp-server.labels" . | nindent 4 }}
+data:
+  {{- range $name, $content := .Values.configFiles }}
+  {{ $name }}: {{ $content | toJson }}
+  {{- end }}
+{{- end }}

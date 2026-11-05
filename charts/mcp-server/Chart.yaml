@@ -1,0 +1,10 @@
+apiVersion: v2
+name: mcp-server
+description: Hosts a Model Context Protocol (MCP) server over streamable HTTP on Kubernetes. Reusable for any MCP server image.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - mcp
+  - model-context-protocol
+  - ai-agents

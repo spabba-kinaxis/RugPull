@@ -1,0 +1,33 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- /* Fail closed: a NetworkPolicy with no allowed sources would accept traffic from anywhere. */}}
+{{- if not .Values.networkPolicy.allowedNamespaces }}
+{{- fail "networkPolicy.allowedNamespaces must list at least one namespace, or set networkPolicy.enabled=false" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mcp-server.fullname" . }}
+  labels:
+    {{- include "mcp-server.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "mcp-server.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- range .Values.networkPolicy.allowedNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . | quote }}
+          {{- with $.Values.networkPolicy.allowedPodSelector }}
+          podSelector:
+            matchLabels:
+              {{- toYaml . | nindent 14 }}
+          {{- end }}
+        {{- end }}
+      ports:
+        - port: {{ .Values.mcp.port }}
+          protocol: TCP
+{{- end }}

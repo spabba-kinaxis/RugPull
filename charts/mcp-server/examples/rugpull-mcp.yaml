@@ -1,0 +1,20 @@
+# The rugpull MCP server (tools: fingerprint_tools, compare_tool_listing, build_baseline_entry).
+#   helm upgrade --install rugpull-mcp ./charts/mcp-server -n mcp-detector -f examples/rugpull-mcp.yaml
+image:
+  repository: <registry>/rugpull-mcp
+  tag: "0.1.0"
+mcp:
+  port: 8000
+  healthPath: /healthz
+env:
+  MCP_TRANSPORT: streamable-http
+  BASELINE_PATH: /baseline/approved-tools.json
+# The approved baseline lives in the mcp-baseline ConfigMap, managed by the baseline pipeline.
+existingConfigMap: mcp-baseline
+configMount:
+  path: /baseline
+  readOnly: true
+networkPolicy:
+  # Only the gateway's namespace may call the server.
+  allowedNamespaces:
+    - kong
