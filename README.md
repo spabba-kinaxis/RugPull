@@ -12,6 +12,8 @@ An MCP server can pass review with harmless tool descriptions, then change them 
 | [`mcp_server/docs/PLAN.md`](mcp_server/docs/PLAN.md) | Status of each component, the phased plan to production, and open decisions |
 | [`mcp_server/kong/kong.yaml`](mcp_server/kong/kong.yaml) | decK config for the MCP routes and the HTTP Log plugin |
 | [`mcp_server/k8s/`](mcp_server/k8s/) | Kubernetes manifests for the MCP server, the ingest service, and an optional demo |
+| [`mcp_server/agent/`](mcp_server/agent/) | A local agent that uses the MCP tools through the gateway, with a Claude model |
+| [`charts/mcp-server/`](charts/mcp-server/) | Reusable Helm chart that hosts any MCP server on Kubernetes |
 
 ## How it works
 

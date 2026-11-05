@@ -1,0 +1,16 @@
+{{ .Chart.Name }} {{ .Chart.AppVersion }} is deployed as "{{ include "mcp-server.fullname" . }}".
+
+MCP endpoint, from inside the cluster:
+  http://{{ include "mcp-server.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}{{ .Values.mcp.path }}
+
+Health endpoint:
+  http://{{ include "mcp-server.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}{{ .Values.mcp.healthPath }}
+
+Check it:
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "mcp-server.fullname" . }}
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+{{- if .Values.networkPolicy.enabled }}
+
+Only pods in these namespaces can reach the port: {{ join ", " .Values.networkPolicy.allowedNamespaces }}
+{{- end }}

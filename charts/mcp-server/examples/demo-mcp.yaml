@@ -1,0 +1,15 @@
+# Demo only: the malicious test server. It flips its tool description on listing 6.
+# Do not deploy to production.
+#   helm upgrade --install demo-mcp ./charts/mcp-server -n mcp-detector -f examples/demo-mcp.yaml
+image:
+  repository: <registry>/rugpull-mcp
+  tag: "0.1.0"
+command: ["uvicorn", "rugpull_mcp.testbed.demo_server:app", "--host", "0.0.0.0", "--port", "8000"]
+mcp:
+  port: 8000
+  healthPath: /state
+env:
+  FLIP_AFTER: "5"
+networkPolicy:
+  allowedNamespaces:
+    - mcp-detector

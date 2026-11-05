@@ -1,0 +1,21 @@
+# Template for hosting any MCP server image that serves streamable HTTP.
+# Copy this file, change the values, and install with:
+#   helm upgrade --install <name> ./charts/mcp-server -n <namespace> -f <your-file>.yaml
+image:
+  repository: <registry>/<server-image>
+  tag: "<version>"
+mcp:
+  port: 8000            # the port the server listens on
+  healthPath: /healthz  # must return HTTP 200 without a token
+env: {}
+# Secrets the server needs, created out of band (never in values files):
+#   kubectl -n <namespace> create secret generic <name>-secrets --from-literal=API_KEY=...
+existingSecret: "<name>-secrets"
+networkPolicy:
+  # Namespaces that may call the server, usually the gateway's namespace.
+  allowedNamespaces:
+    - <gateway-namespace>
+replicaCount: 2
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

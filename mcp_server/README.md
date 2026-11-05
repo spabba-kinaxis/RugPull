@@ -107,6 +107,26 @@ To run only the MCP server (stdio or HTTP):
 BASELINE_PATH=/tmp/approved-tools.json python -m rugpull_mcp            # http://localhost:8000/mcp
 ```
 
+## Local agent
+
+`agent/` is a small agent that uses the MCP tools through the gateway. The model is
+Anthropic's Messages API (default `claude-haiku-5-5`, set with `AGENT_MODEL`). The
+API key is read from `ANTHROPIC_API_KEY`.
+
+```bash
+pip install -r requirements-dev.txt
+export ANTHROPIC_API_KEY=...          # your key; not stored in the repo
+
+# With the demo stack from above running on port 8501 (gateway):
+python -m agent --mcp-url http://127.0.0.1:8501/mcp/demo --consumer agent-a \
+  --prompt "What is the weather in Oslo?" --verbose
+```
+
+Without `--prompt`, the agent runs as a chat. `--verbose` prints the tool trace.
+Tool descriptions and results come from MCP servers, so the agent treats them as data.
+The loop is tested with fakes (`tests/test_agent.py`). The Anthropic call itself has not
+been run here, because no API key was available.
+
 ## Build and deploy
 
 One image runs all roles. Only the start command differs.
@@ -121,6 +141,8 @@ kubectl -n mcp-detector create secret generic rugpull-detector \
   --from-literal=CONTROL_PLANE_ID="$CONTROL_PLANE_ID" --from-literal=KONNECT_API="$KONNECT_API" \
   --from-literal=ROUTE_IDS='{"demo-mcp":"<route uuid>"}'
 kubectl apply -f k8s/detector.yaml                    # ingest service (Kong posts logs here)
+# Or install the MCP servers with the Helm chart instead of k8s/mcp-server.yaml:
+#   helm upgrade --install rugpull-mcp ../charts/mcp-server -n mcp-detector -f ../charts/mcp-server/examples/rugpull-mcp.yaml
 kubectl apply -f k8s/demo.yaml                        # optional: demo server and gateway stand-in
 kubectl -n mcp-detector rollout status deploy/rugpull-ingest
 ```

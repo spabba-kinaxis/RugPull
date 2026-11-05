@@ -1,0 +1,125 @@
+# Default values for mcp-server. Override per server with -f values-<name>.yaml.
+# See examples/ for working values files.
+
+replicaCount: 1
+
+image:
+  # Required. The image that runs the MCP server.
+  repository: ""
+  # Defaults to .Chart.AppVersion when empty. Pin a version in production.
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Overrides the image entrypoint. Leave empty to use the image default.
+command: []
+args: []
+
+mcp:
+  # Port the server listens on inside the container.
+  port: 8000
+  # Path the health probes call. The server must answer GET with HTTP 200.
+  healthPath: /healthz
+  # MCP endpoint path, documented for clients. Clients connect to http://<service>:<port><path>.
+  path: /mcp
+
+# Plain environment variables. Values are quoted, so use strings.
+env: {}
+
+# Name of an existing Secret whose keys are all loaded as environment variables.
+existingSecret: ""
+
+# Extra envFrom entries, passed through as written.
+extraEnvFrom: []
+
+# Files mounted into the container at configMount.path, for example an approved baseline.
+# Keys are file names, values are file contents. The chart creates a ConfigMap for them.
+configFiles: {}
+# Use a ConfigMap you manage yourself instead of configFiles.
+existingConfigMap: ""
+configMount:
+  path: /config
+  readOnly: true
+
+extraVolumes: []
+extraVolumeMounts: []
+
+service:
+  type: ClusterIP
+  port: 8000
+  annotations: {}
+
+ingress:
+  # Off by default. An MCP server reachable from outside should sit behind the API gateway.
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  #  - host: mcp.example.internal
+  #    path: /
+  #    pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+probes:
+  enabled: true
+  readinessPeriodSeconds: 10
+  livenessPeriodSeconds: 20
+  livenessInitialDelaySeconds: 10
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  # Token mounting is off: the MCP server does not call the Kubernetes API.
+  automountServiceAccountToken: false
+
+# Ingress allow-list. Traffic is refused unless at least one namespace is listed.
+networkPolicy:
+  enabled: true
+  # Namespaces allowed to reach the MCP port (for example the gateway's namespace).
+  allowedNamespaces: []
+  # Optional: narrow the allow-list to pods with these labels in those namespaces.
+  allowedPodSelector: {}
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 75
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Image used by the helm test that checks the health endpoint.
+test:
+  image: curlimages/curl:8.10.1
