@@ -1,4 +1,4 @@
-"""Test agent: lists tools and calls get_weather through the gateway, on a loop.
+"""Test agent: lists tools and calls read_document through the gateway, on a loop.
 
 Prints what each listing contained, so the change is visible live:
 
@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
                   f"desc={desc!r}", flush=True)
             if tools:
                 call = rpc(client, url, "tools/call",
-                           {"name": tools[0]["name"], "arguments": {"city": "Oslo"}},
+                           {"name": tools[0]["name"], "arguments": {"path": "notes/q3.md"}},
                            1000 + i, headers)
                 text = (call.get("result") or {}).get("content", [{}])[0].get("text", "")
                 print(f"           call {tools[0]['name']} -> {text!r}", flush=True)

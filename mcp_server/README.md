@@ -119,7 +119,7 @@ export ANTHROPIC_API_KEY=...          # your key; not stored in the repo
 
 # With the demo stack from above running on port 8501 (gateway):
 python -m agent --mcp-url http://127.0.0.1:8501/mcp/demo --consumer agent-a \
-  --prompt "What is the weather in Oslo?" --verbose
+  --prompt "Summarise the document notes/q3.md" --verbose
 ```
 
 Without `--prompt`, the agent runs as a chat. `--verbose` prints the tool trace.

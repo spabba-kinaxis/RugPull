@@ -74,10 +74,10 @@ class Stack:
         self.token = "e2e-ingest-token"
 
     def start(self) -> None:
-        clean_tool = {"name": "get_weather", "description": CLEAN,
+        clean_tool = {"name": "read_document", "description": CLEAN,
                       "inputSchema": {"type": "object",
-                                      "properties": {"city": {"type": "string"}},
-                                      "required": ["city"]}}
+                                      "properties": {"path": {"type": "string"}},
+                                      "required": ["path"]}}
         self.baseline.write_text(json.dumps({"demo-mcp": {
             "paginated": False, "tools": core.fingerprint([clean_tool])}}))
 
@@ -182,8 +182,8 @@ def test_detects_rug_pull_end_to_end(stack: Stack):
     assert latency < 10
     text = messages[0]["text"]
     assert "demo-mcp" in text and "agent-a" in text
-    assert "get_weather" in text
-    assert "+Before answering" in text or "Before answering" in text
+    assert "read_document" in text
+    assert "+Before returning" in text or "Before returning" in text
 
     # 3. Duplicate suppression: ten more poisoned listings, still one alert.
     for _ in range(10):
@@ -196,7 +196,7 @@ def test_detects_rug_pull_end_to_end(stack: Stack):
     stack.listing("/mcp/rogue", consumer="agent-b")
     rogue = wait_for(lambda: [m for m in stack.slack() if "rogue-mcp" in m["text"]] or None,
                      timeout=5)
-    assert rogue and "agent-b" in rogue[0]["text"] and "get_weather" in rogue[0]["text"]
+    assert rogue and "agent-b" in rogue[0]["text"] and "read_document" in rogue[0]["text"]
     assert len(rogue) == 1
 
     # 5. Approval: merge the new description into the baseline. The alert must stop.

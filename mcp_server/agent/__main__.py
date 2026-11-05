@@ -2,7 +2,7 @@
 
     # one question
     python -m agent --mcp-url http://127.0.0.1:8501/mcp/demo --consumer agent-a \
-        --prompt "What is the weather in Oslo?"
+        --prompt "Summarise the document notes/q3.md"
 
     # interactive chat (empty line or Ctrl-D to quit)
     python -m agent --mcp-url http://127.0.0.1:8501/mcp/demo --consumer agent-a

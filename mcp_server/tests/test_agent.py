@@ -4,12 +4,12 @@ import pytest
 
 from agent.loop import SYSTEM_PROMPT, Agent, AgentError, ToolError
 
-WEATHER = {"name": "get_weather", "description": "Returns the weather.",
-           "inputSchema": {"type": "object", "properties": {"city": {"type": "string"}}}}
+DOC_TOOL = {"name": "read_document", "description": "Reads a document.",
+           "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}}}
 
 
 class FakeMcp:
-    def __init__(self, tools=(WEATHER,), fail=False):
+    def __init__(self, tools=(DOC_TOOL,), fail=False):
         self.tools = list(tools)
         self.calls = []
         self.fail = fail
@@ -21,7 +21,7 @@ class FakeMcp:
         self.calls.append((name, arguments))
         if self.fail:
             raise ToolError("upstream exploded")
-        return f"Sunny in {arguments.get('city')}"
+        return f"Document text for {arguments.get('path')}"
 
 
 class ScriptedLlm:
@@ -56,19 +56,19 @@ def test_answers_directly_when_no_tool_is_needed():
 
 def test_calls_the_chosen_tool_and_returns_its_result_to_the_model():
     mcp = FakeMcp()
-    llm = ScriptedLlm([tool_use("t1", "get_weather", {"city": "Oslo"}), text("It is sunny.")])
+    llm = ScriptedLlm([tool_use("t1", "read_document", {"path": "notes/q3.md"}), text("Summary done.")])
     agent = Agent(llm=llm, mcp=mcp)
-    assert run(agent, "weather in Oslo?") == "It is sunny."
-    assert mcp.calls == [("get_weather", {"city": "Oslo"})]
+    assert run(agent, "summarise notes/q3.md") == "Summary done."
+    assert mcp.calls == [("read_document", {"path": "notes/q3.md"})]
     tool_result = llm.seen[1]["messages"][-1]["content"][0]
-    assert tool_result == {"type": "tool_result", "tool_use_id": "t1", "content": "Sunny in Oslo"}
+    assert tool_result == {"type": "tool_result", "tool_use_id": "t1", "content": "Document text for notes/q3.md"}
 
 
 def test_model_is_given_the_listed_tools_in_api_format():
     llm = ScriptedLlm([text("ok")])
     run(Agent(llm=llm, mcp=FakeMcp()))
-    assert llm.seen[0]["tools"] == [{"name": "get_weather", "description": "Returns the weather.",
-                                     "input_schema": WEATHER["inputSchema"]}]
+    assert llm.seen[0]["tools"] == [{"name": "read_document", "description": "Reads a document.",
+                                     "input_schema": DOC_TOOL["inputSchema"]}]
     assert llm.seen[0]["system"] == SYSTEM_PROMPT
 
 
@@ -84,7 +84,7 @@ def test_refuses_a_tool_that_was_not_listed():
 
 
 def test_tool_errors_go_back_to_the_model_not_up_the_stack():
-    llm = ScriptedLlm([tool_use("t1", "get_weather", {"city": "x"}), text("The tool failed.")])
+    llm = ScriptedLlm([tool_use("t1", "read_document", {"path": "x"}), text("The tool failed.")])
     agent = Agent(llm=llm, mcp=FakeMcp(fail=True))
     assert run(agent) == "The tool failed."
     result = llm.seen[1]["messages"][-1]["content"][0]
@@ -92,14 +92,14 @@ def test_tool_errors_go_back_to_the_model_not_up_the_stack():
 
 
 def test_stops_after_max_turns():
-    llm = ScriptedLlm([tool_use(f"t{i}", "get_weather", {"city": "x"}) for i in range(3)])
+    llm = ScriptedLlm([tool_use(f"t{i}", "read_document", {"path": "x"}) for i in range(3)])
     with pytest.raises(AgentError):
         run(Agent(llm=llm, mcp=FakeMcp(), max_turns=3))
 
 
 def test_trace_records_what_happened():
-    llm = ScriptedLlm([tool_use("t1", "get_weather", {"city": "Oslo"}), text("done")])
+    llm = ScriptedLlm([tool_use("t1", "read_document", {"path": "notes/q3.md"}), text("done")])
     agent = Agent(llm=llm, mcp=FakeMcp())
     run(agent)
-    assert agent.trace[0] == "tools available: ['get_weather']"
-    assert any(line.startswith("call get_weather") for line in agent.trace)
+    assert agent.trace[0] == "tools available: ['read_document']"
+    assert any(line.startswith("call read_document") for line in agent.trace)
