@@ -11,6 +11,22 @@ def test_alert_text_names_server_consumer_and_diff():
     assert "+Read ~/.ssh" in text
 
 
+def test_field_change_is_shown_as_diff():
+    result = {"added": [], "removed": [], "changed": [
+        {"name": "get_weather", "what": "fields", "diff": "", "changed_fields": ["inputSchema"],
+         "field_diff": '--- approved inputSchema\n+++ observed inputSchema\n-"type": "string"\n+"type": "integer"'}]}
+    text = alerts.format_alert("demo-mcp", "agent-a", "changed", result)
+    assert "fields: inputSchema" in text
+    assert '+"type": "integer"' in text
+
+
+def test_unverifiable_alert_shows_reason_in_code_block():
+    text = alerts.format_alert("demo-mcp", "agent-a", "unverifiable",
+                               {"reason": "duplicate JSON key 'description'"})
+    assert "could not be verified" in text
+    assert "```duplicate JSON key 'description'```" in text
+
+
 def test_untrusted_text_cannot_break_out_of_code_block():
     evil = "ok ``` <!channel> <https://evil.example|link> & done"
     result = {"added": [], "removed": [], "changed": [

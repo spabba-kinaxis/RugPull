@@ -1,8 +1,9 @@
 """Slack alerts for detected tool changes.
 
-Tool names and descriptions come from untrusted servers. They are placed in code
-blocks, with backticks and Slack control characters escaped, so they cannot
-break formatting or add links and mentions.
+Tool names, descriptions and schemas come from untrusted servers. They are placed
+in code blocks, with backticks and Slack control characters escaped, so they cannot
+break formatting or add links and mentions. Slack messages are capped; the full
+diff is available from the compare_tool_listing tool.
 """
 
 from __future__ import annotations
@@ -25,6 +26,12 @@ def _safe_block(text: str) -> str:
 
 
 def format_alert(server: str, consumer: str, status: str, result: dict[str, Any]) -> str:
+    if status == "unverifiable":
+        return (
+            f"MCP tools/list response from {server} (consumer {consumer}) could not be verified. "
+            f"Treat it as a possible change until it is checked.\n"
+            f"```{_safe_block(str(result.get('reason', 'unknown')))}```"
+        )
     if status == "unapproved_server":
         head = f"MCP server {server} is not in the approved baseline (consumer {consumer})"
     else:
@@ -35,8 +42,17 @@ def format_alert(server: str, consumer: str, status: str, result: dict[str, Any]
     for name in result["removed"]:
         lines.append(f"Removed tool: {name}")
     for change in result["changed"]:
-        diff = change["diff"] or "Schema or annotations changed (no description diff)"
-        lines.append(f"Changed tool: {change['name']}\n```{_safe_block(diff)}```")
+        labels = []
+        if change.get("diff"):
+            labels.append("description")
+        if change.get("changed_fields"):
+            labels.append("fields: " + ", ".join(change["changed_fields"]))
+        parts = [p for p in (change.get("diff"), change.get("field_diff")) if p]
+        body = "\n".join(parts) or "(no readable diff)"
+        lines.append(f"Changed tool: {change['name']} ({'; '.join(labels) or 'unknown'})\n"
+                     f"```{_safe_block(body)}```")
+        if change.get("note"):
+            lines.append(f"Note: {change['note']}")
     return "\n".join(lines)
 
 

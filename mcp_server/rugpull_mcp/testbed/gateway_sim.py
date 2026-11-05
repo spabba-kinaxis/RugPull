@@ -11,6 +11,7 @@ the auth plugin instead.
 Configuration:
     ROUTES          JSON map of path prefix to {"service": name, "upstream": url}
     DETECTOR_URL    ingest endpoint, e.g. http://127.0.0.1:8080/ingest (optional)
+    DETECTOR_TOKEN  token sent to the ingest endpoint (must match INGEST_TOKEN there)
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ log = logging.getLogger("gateway_sim")
 
 ROUTES: dict[str, dict[str, str]] = json.loads(os.environ.get("ROUTES", "{}"))
 DETECTOR_URL = os.environ.get("DETECTOR_URL", "")
+DETECTOR_TOKEN = os.environ.get("DETECTOR_TOKEN", "")
 HOP_BY_HOP = {"host", "content-length", "connection", "accept-encoding"}
 
 app = FastAPI(title="gateway-sim")
@@ -45,7 +47,8 @@ async def _emit_log(record: dict[str, Any]) -> None:
         return
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            await client.post(DETECTOR_URL, json=record)
+            await client.post(DETECTOR_URL, json=record,
+                              headers={"Authorization": f"Bearer {DETECTOR_TOKEN}"})
     except httpx.HTTPError as exc:
         log.error("failed to send log record: %s", exc)
 

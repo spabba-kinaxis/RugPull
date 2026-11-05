@@ -7,7 +7,9 @@
 #     --from-literal=KONNECT_PAT="$KONNECT_PAT" \
 #     --from-literal=CONTROL_PLANE_ID="$CONTROL_PLANE_ID" \
 #     --from-literal=KONNECT_API="$KONNECT_API" \
-#     --from-literal=ROUTE_IDS='{"demo-mcp":"<route uuid>"}'
+#     --from-literal=ROUTE_IDS='{"demo-mcp":"<route uuid>"}' \
+#     --from-literal=INGEST_TOKEN="$(openssl rand -hex 32)"
+# Kong must send the same token (see kong/kong.yaml). Keep it out of git.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -50,6 +52,8 @@ spec:
               value: response.body
             - name: QUARANTINE_ENABLED
               value: "false"
+            - name: ALERT_CACHE_SIZE
+              value: "10000"
           readinessProbe:
             httpGet:
               path: /healthz

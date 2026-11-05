@@ -71,6 +71,7 @@ class Stack:
         self.fake = free_port()
         self.baseline = tmp_path / "approved-tools.json"
         self.quarantine = quarantine
+        self.token = "e2e-ingest-token"
 
     def start(self) -> None:
         clean_tool = {"name": "get_weather", "description": CLEAN,
@@ -81,6 +82,7 @@ class Stack:
             "paginated": False, "tools": core.fingerprint([clean_tool])}}))
 
         base_env = dict(os.environ, PYTHONPATH=str(ROOT), FLIP_AFTER="5")
+        token = "e2e-ingest-token"
         upstream = f"http://127.0.0.1:{self.demo}/mcp"
         routes = {
             "/mcp/demo": {"service": "demo-mcp", "upstream": upstream},
@@ -89,6 +91,7 @@ class Stack:
         ingest_env = dict(base_env,
                           BASELINE_PATH=str(self.baseline),
                           BASELINE_TTL_SECONDS="1",
+                          INGEST_TOKEN=token,
                           SLACK_WEBHOOK_URL=f"http://127.0.0.1:{self.fake}/slack/webhook",
                           QUARANTINE_ENABLED="true" if self.quarantine else "false",
                           KONNECT_API=f"http://127.0.0.1:{self.fake}/konnect",
@@ -105,7 +108,8 @@ class Stack:
             ("gateway", [PY, "-m", "uvicorn", "rugpull_mcp.testbed.gateway_sim:app",
                          "--port", str(self.gateway), "--log-level", "warning"],
              dict(base_env, ROUTES=json.dumps(routes),
-                  DETECTOR_URL=f"http://127.0.0.1:{self.ingest}/ingest")),
+                  DETECTOR_URL=f"http://127.0.0.1:{self.ingest}/ingest",
+                  DETECTOR_TOKEN=token)),
         ]
         for name, cmd, env in services:
             log = open(self.tmp / f"{name}.log", "w")
@@ -162,6 +166,10 @@ def test_detects_rug_pull_end_to_end(stack: Stack):
         stack.listing("/mcp/demo")
     time.sleep(0.5)
     assert stack.slack() == [], "clean listings must not alert"
+
+    # Unauthenticated log delivery is refused.
+    refused = httpx.post(f"http://127.0.0.1:{stack.ingest}/ingest", json={}, timeout=5)
+    assert refused.status_code == 401
 
     # 2. Listing 6 is poisoned. The alert must arrive within 10 seconds.
     flipped_at = time.time()

@@ -75,6 +75,11 @@ spec:
               value: '{"/mcp/demo":{"service":"demo-mcp","upstream":"http://demo-mcp.mcp-detector.svc.cluster.local:8000/mcp"}}'
             - name: DETECTOR_URL
               value: http://rugpull-ingest.mcp-detector.svc.cluster.local:8080/ingest
+            - name: DETECTOR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: rugpull-detector
+                  key: INGEST_TOKEN
           readinessProbe:
             httpGet: {path: /healthz, port: 8000}
           securityContext:

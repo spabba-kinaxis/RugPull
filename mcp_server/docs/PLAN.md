@@ -44,6 +44,17 @@ reviewer ──► rugpull-mcp tools (fingerprint / compare / build entry) ─�
 The ingest service and the MCP server share `core.py` and `baseline.py`. Hashes match
 across the components because they use the same canonical form.
 
+## 3a. Hardening already applied
+
+These items from the loophole review are closed in code, with tests:
+whole-object hashing, strict parsing (duplicate keys, malformed SSE, batch arrays),
+unverifiable alerts, schema field diffs, per-consumer alerts, a bounded alert cache, and
+token authentication on ingest.
+
+Still open, and needing team decisions: captured baseline vs privileged client (item 5),
+per-tool quarantine and coverage of all routes to one upstream (item 6), and
+tool-result and prompt monitoring, which the design doc puts out of scope.
+
 ## 3. Remaining work, in order
 
 Each phase ends with a check. A phase is done when its check passes.
@@ -97,6 +108,20 @@ The end-to-end test in `tests/e2e/test_e2e.py` runs the same scenario locally.
 - Review the Konnect PAT scope and rotate the secret after the hackathon.
 
 ## 4. Decisions made here
+
+- **Hash covers the whole tool object.** The design doc hashes four fields. The build hashes
+  everything, so a poisoned `title`, `outputSchema` or `_meta` is caught. Servers that add
+  volatile metadata will produce alerts, which can be approved through the baseline.
+- **Baselines store each approved tool definition.** This lets alerts show the schema diff
+  a reviewer needs. Baselines recorded before this change must be re-recorded, because the
+  hash scope changed. No production baseline exists yet.
+- **Unverifiable is an alert, not a skip.** Malformed JSON, duplicate keys, batched or SSE
+  bodies that cannot be read, and tools/list bodies without a tools array all raise an alert.
+- **Ingest requires a token.** Kong sends `Authorization: Bearer <INGEST_TOKEN>`. Without a
+  configured token, the service refuses every request unless unauthenticated mode is set
+  explicitly.
+- **Alerts are per consumer.** Each agent that receives a change is reported.
+- **The alert cache is bounded** (`ALERT_CACHE_SIZE`, oldest entries evicted first).
 
 - **One image, three roles.** The MCP server, ingest service and demo all ship in one
   image, with different start commands. This keeps one build and one version.

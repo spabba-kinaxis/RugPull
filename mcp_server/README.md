@@ -36,6 +36,9 @@ this server match hashes recorded by `scripts/make_baseline.py`.
 | --- | --- | --- |
 | `BASELINE_PATH` | `/baseline/approved-tools.json` | Approved baseline (mounted ConfigMap). |
 | `MCP_TRANSPORT` | `streamable-http` | `streamable-http` or `stdio`. |
+| `INGEST_TOKEN` | (required) | Ingest service: token Kong sends as `Authorization: Bearer ...`. |
+| `INGEST_ALLOW_UNAUTHENTICATED` | `false` | Ingest service: accept records without a token. Local use only. |
+| `ALERT_CACHE_SIZE` | `10000` | Ingest service: distinct alerts remembered. |
 | `MCP_HOST` | `0.0.0.0` | HTTP bind address. |
 | `MCP_PORT` | `8000` | HTTP port. The MCP endpoint is `/mcp`. |
 | `LOG_LEVEL` | `INFO` | Log level. |
@@ -49,7 +52,7 @@ cd mcp_server
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
 
-pytest -q                       # unit tests and end-to-end test (46 tests)
+pytest -q                       # unit tests and end-to-end test (65 tests)
 ```
 
 The end-to-end test starts the whole pipeline on free ports and checks the rug-pull
